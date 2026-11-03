@@ -1,2 +1,152 @@
-<META http-equiv='Content-Type' content='text/html; charset=UTF-8'>
-<HTML><BODY><CENTER><H1><font face="Tahoma">Welcome to the Home Page for the ISDemo Package.</font></H1></CENTER></BODY></HTML>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>WxDocumentExtractor</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", system-ui, Tahoma, sans-serif; font-size: 15px;
+         line-height: 1.6; color: #1f2328; background: #fff; margin: 0; }
+  #content { max-width: 860px; margin: 0 auto; padding: 24px 20px 48px; }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.9em; border-bottom: 1px solid #e5e7eb; padding-bottom: .3em; }
+  h2 { font-size: 1.45em; border-bottom: 1px solid #e5e7eb; padding-bottom: .25em; margin-top: 1.8em; }
+  h3 { font-size: 1.15em; margin-top: 1.5em; }
+  a { color: #3b82d4; }
+  code { background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 3px; padding: 1px 5px;
+         font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: .9em; }
+  pre { background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px; overflow-x: auto; }
+  pre code { background: none; border: 0; padding: 0; }
+  table { border-collapse: collapse; margin: 1em 0; width: 100%; }
+  th, td { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f8fa; }
+  li { margin: .25em 0; }
+  .note { color: #57606a; font-size: .9em; }
+  .error { background: #fff8e1; border: 1px solid #e5e7eb; padding: 10px 14px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="content"><p class="note">Loading README.md ...</p></div>
+
+<script>
+(function () {
+  var SOURCE = 'README.md';
+  var target = document.getElementById('content');
+
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Inline formatting: code spans first (protected), then links, bold, italic.
+  function inline(text) {
+    var spans = [];
+    text = text.replace(/`([^`]+)`/g, function (m, c) {
+      spans.push('<code>' + esc(c) + '</code>');
+      return '\u0000' + (spans.length - 1) + '\u0000';
+    });
+    text = esc(text);
+    text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, label, url) {
+      if (/^\s*(javascript|vbscript|data):/i.test(url)) { return label; }
+      var ext = /^https?:/i.test(url) ? ' target="_blank" rel="noopener"' : '';
+      return '<a href="' + url + '"' + ext + '>' + label + '</a>';
+    });
+    text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
+    return text.replace(/\u0000(\d+)\u0000/g, function (m, i) { return spans[+i]; });
+  }
+
+  function splitRow(line) {
+    line = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+    return line.split('|').map(function (c) { return c.trim(); });
+  }
+
+  function render(md) {
+    var lines = md.replace(/\r\n?/g, '\n').split('\n');
+    var out = [], i = 0, m;
+    while (i < lines.length) {
+      var line = lines[i];
+
+      if (/^```/.test(line)) {                       // fenced code
+        var code = [];
+        i++;
+        while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
+        i++;
+        out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>');
+        continue;
+      }
+      if ((m = /^(#{1,6})\s+(.*)$/.exec(line))) {     // heading
+        out.push('<h' + m[1].length + '>' + inline(m[2]) + '</h' + m[1].length + '>');
+        i++;
+        continue;
+      }
+      if (/^\s*\|/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-+/.test(lines[i + 1])) { // table
+        var head = splitRow(line), rows = [];
+        i += 2;
+        while (i < lines.length && /^\s*\|/.test(lines[i])) { rows.push(splitRow(lines[i])); i++; }
+        var t = '<table><thead><tr>' + head.map(function (c) { return '<th>' + inline(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+        rows.forEach(function (r) {
+          t += '<tr>' + r.map(function (c) { return '<td>' + inline(c) + '</td>'; }).join('') + '</tr>';
+        });
+        out.push(t + '</tbody></table>');
+        continue;
+      }
+      if (/^\s*[-*]\s+/.test(line)) {                 // bullet list
+        var items = [];
+        while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+          items.push('<li>' + inline(lines[i].replace(/^\s*[-*]\s+/, '')) + '</li>');
+          i++;
+        }
+        out.push('<ul>' + items.join('') + '</ul>');
+        continue;
+      }
+      if (/^\s*\d+\.\s+/.test(line)) {                // numbered list
+        var nitems = [];
+        while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+          nitems.push('<li>' + inline(lines[i].replace(/^\s*\d+\.\s+/, '')) + '</li>');
+          i++;
+        }
+        out.push('<ol>' + nitems.join('') + '</ol>');
+        continue;
+      }
+      if (/^\s*$/.test(line)) { i++; continue; }      // blank
+
+      var para = [];                                  // paragraph
+      while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^(```|#{1,6}\s|\s*\|)/.test(lines[i]) &&
+             !/^\s*([-*]|\d+\.)\s+/.test(lines[i])) {
+        para.push(lines[i]);
+        i++;
+      }
+      out.push('<p>' + inline(para.join(' ')) + '</p>');
+    }
+    return out.join('\n');
+  }
+
+  function showRaw(text, why) {
+    target.innerHTML = '<p class="error">' + esc(why) + '</p><pre>' + esc(text || '') + '</pre>';
+  }
+
+  function load() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', SOURCE, true);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) { return; }
+      if ((xhr.status >= 200 && xhr.status < 300) || (xhr.status === 0 && xhr.responseText)) {
+        try {
+          target.innerHTML = render(xhr.responseText);
+          var h = target.querySelector('h1');
+          if (h) { document.title = h.textContent; }
+        } catch (e) {
+          showRaw(xhr.responseText, 'Could not render ' + SOURCE + ' (' + e.message + '). Showing the raw text.');
+        }
+      } else {
+        showRaw('', 'Could not load ' + SOURCE + ' (HTTP ' + xhr.status + ').');
+      }
+    };
+    xhr.send();
+  }
+
+  load();
+})();
+</script>
+<noscript><p>This page needs JavaScript to display README.md. The file can also be opened directly as plain text.</p></noscript>
+</body>
+</html>
